@@ -7,78 +7,77 @@
 package main
 
 import (
-	"cloud.google.com/go/firestore"
-	"context"
-	"firebase.google.com/go"
 	"fmt"
-	"google.golang.org/api/option"
-	"html/template"
 	"log"
-	"net/http"
+	"os"
+	"strings"
+	"time"
 )
 
 /*
-Inits firebase application with provided credential file
+Defines a .survive file datatype.
 */
-func initializeAppWithServiceAccount() *firebase.App {
-	opt := option.WithCredentialsFile("/Users/joshspicer/Documents/secrets/survivor/survivor-firebase.json")
-	app, err := firebase.NewApp(context.Background(), nil, opt)
-	if err != nil {
-		log.Fatalf("error initializing app: %v\n", err)
-	}
-	return app
+type SurviveFile struct {
+	category  int // Will divide between player data, global data, etc..
+	week      int
+	title     string
+	Body      string
+	createdAt time.Time
 }
 
-/*
-Inits firestore instance.
-*/
-func initFirestore() *firestore.Client {
-	// Init app
-	app := initializeAppWithServiceAccount()
+// ENVIRONMENT VARIABLES
+const ENV_ROOT = "/Users/joshspicer/go/src/github.com/joshspicer/survivor-scheduler"
 
-	// Init firestore service
-	client, err := app.Firestore(context.Background())
+func (ss *SurviveFile) save() error {
+	filename := fmt.Sprintf("%s/c%d-w%d-%s.survive", ENV_ROOT, ss.category, ss.week, ss.title)
+
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+
+	cleanedBody := strings.Replace(ss.Body, ":", " ", -1)
+
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal("Error opening file.", err)
+		return err
 	}
 
-	return client
+	stringToWrite := fmt.Sprintf("%s: %s%s", ss.createdAt.Format(time.RFC3339), cleanedBody, "\n")
+	_, err = f.WriteString(stringToWrite)
+	if err != nil {
+		log.Fatal("Error writing to file.", err)
+		return err
+	}
+
+	return nil
 }
 
 /*
 Main function. Entry point of program.
 */
 func main() {
-	//client := initFirestore()
 
-	templates := template.Must(template.ParseFiles("templates/welcome-template.html"))
-	http.Handle("/static/", //final url can be anything
-		http.StripPrefix("/static/",
-			http.FileServer(http.Dir("static"))))
+	//templates := template.Must(template.ParseFiles("templates/welcome-template.html"))
+	//http.Handle("/static/", //final url can be anything
+	//	http.StripPrefix("/static/",
+	//		http.FileServer(http.Dir("static"))))
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-
-		//Takes the name from the URL query e.g ?name=Martin, will set welcome.Name = Martin.
-		if name := r.FormValue("name"); name != "" {
-			welcome.Name = name
-		}
-		//If errors show an internal server error message
-		//I also pass the welcome struct to the welcome-template.html file.
-		if err := templates.ExecuteTemplate(w, "welcome-template.html", welcome); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	//_, _, err := client.Collection("users").Add(context.Background(), map[string]interface{}{
-	//	"first": "Ada",
-	//	"last":  "Lovelace",
-	//	"born":  1815,
+	//http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	//
+	//	//Takes the name from the URL query e.g ?name=Martin, will set welcome.Name = Martin.
+	//	if name := r.FormValue("name"); name != "" {
+	//		welcome.Name = name
+	//	}
+	//	//If errors show an internal server error message
+	//	//I also pass the welcome struct to the welcome-template.html file.
+	//	if err := templates.ExecuteTemplate(w, "welcome-template.html", welcome); err != nil {
+	//		http.Error(w, err.Error(), http.StatusInternalServerError)
+	//	}
 	//})
-	//if err != nil {
-	//	log.Fatalf("Failed adding alovelace: %v", err)
-	//}
 
-	fmt.Println("Listening")
-	fmt.Println(http.ListenAndServe(":25500", nil))
+	t1 := SurviveFile{category: 4, week: 55, title: "hello", Body: "This is :a sampl: :::e Page.::", createdAt: time.Now()}
+	err := t1.save()
+	fmt.Print(err)
+
+	//fmt.Println("Listening")
+	//fmt.Println(http.ListenAndServe(":25500", nil))
 
 }
