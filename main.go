@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,11 +22,10 @@ import (
 Defines a .survive file datatype.
 */
 type SurviveFile struct {
-	Category  int // Will divide between player data, global data, etc..
-	week      int
-	Title     string
-	Body      string /////TODO: use the "bits per half hour" idea sketched out. convert to hex for coolness?
-	CreatedAt time.Time
+	Week         int
+	Player       string
+	Availability string
+	CreatedAt    time.Time
 }
 
 // ========= ENVIRONMENT VARIABLES ==========
@@ -33,14 +33,11 @@ const ENV_ROOT = "/Users/joshspicer/go/src/github.com/joshspicer/survivor-schedu
 
 func (ss *SurviveFile) save() error {
 	// Define the filename with our filesystem naming convention based on struct fields.
-	filename := fmt.Sprintf("%s/c%d-w%d-%s.survive", ENV_ROOT, ss.Category, ss.week, ss.Title)
+	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, ss.Week, ss.Player)
 
 	// Open the file it is exists, or make a new one.
 	// Either way, mark file as APPENDABLE
 	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-
-	// We will use colons as internal delimiters. Scrub from input.
-	cleanedBody := strings.Replace(ss.Body, ":", " ", -1)
 
 	if err != nil {
 		log.Fatal("Error opening file.", err)
@@ -48,7 +45,7 @@ func (ss *SurviveFile) save() error {
 	}
 
 	// Format data.
-	stringToWrite := fmt.Sprintf("%s: %s%s", ss.CreatedAt.Format(time.RFC3339), cleanedBody, "\n")
+	stringToWrite := fmt.Sprintf("%s: %s%s", ss.CreatedAt.Format(time.RFC3339), ss.Availability, "\n")
 
 	// Write string to open file.
 	_, err = f.WriteString(stringToWrite)
@@ -67,10 +64,24 @@ func (ss *SurviveFile) save() error {
 	return nil
 }
 
-func loadPage(category int, week int, title string) (*SurviveFile, error) {
+func initFile(category int, week int, player string) (*SurviveFile, error) {
+
+	// Init player with zero'd out (free) availability
+	tmp := &SurviveFile{Week: week, Player: player, Availability: "0000:0000:0000:0000:0000:0000:0000", CreatedAt: time.Now()}
+	err := tmp.save()
+	if err != nil {
+		log.Fatal("Error initializing file", err)
+		return nil, err
+	}
+
+	return tmp, nil
+
+}
+
+func loadFile(week int, player string) (*SurviveFile, error) {
 
 	// Compute file name based off convention
-	filename := fmt.Sprintf("%s/c%d-w%d-%s.survive", ENV_ROOT, category, week, title)
+	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, week, player)
 
 	// Read file from file system.
 	body, err := ioutil.ReadFile(filename)
@@ -82,12 +93,18 @@ func loadPage(category int, week int, title string) (*SurviveFile, error) {
 	}
 
 	// TODO: only return last line of file?
-	return &SurviveFile{Category: category, week: week, Title: title, Body: string(body)}, nil
+	return &SurviveFile{Week: week, Player: player, Availability: string(body)}, nil
 }
 
 func viewHandler(w http.ResponseWriter, r *http.Request) {
-	title := r.URL.Path[len("/view/"):]
-	p, err := loadPage(4, 55, title)
+	path := r.URL.Path[len("/view/"):]
+	weekAndName := strings.Split(path, "/")
+	if len(weekAndName) != 2 {
+		log.Fatal("Could not parse view input correctly.")
+		// TODO: redirect back home or to 404.
+	}
+	num, _ := strconv.ParseInt(weekAndName[0], 10, 32)
+	p, err := loadFile(int(num), weekAndName[1])
 
 	if err != nil {
 		log.Fatal("Could not load page view handler")
@@ -105,11 +122,11 @@ Main function. Entry point of program.
 */
 func main() {
 
-	t1 := SurviveFile{Category: 4, week: 55, Title: "hello", Body: "This is a sample page.", CreatedAt: time.Now()}
-	err := t1.save()
-	fmt.Print(err)
+	//initFile(4, 1, "Joe")
+	//initFile(4, 2, "Mike")
+	//initFile(4, 1, "Tim")
 
-	http.HandleFunc("/view/", viewHandler)
+	http.HandleFunc("/view/", viewHandler) //  .../view/week/player_name
 	//http.HandleFunc("/edit/", editHandler)
 	//http.HandleFunc("/save/", saveHandler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
