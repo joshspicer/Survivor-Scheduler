@@ -7,16 +7,23 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"html/template"
-	"io/ioutil"
 	"log"
-	"net/http"
+	"math"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+type DailyAvailability struct {
+	Halfhours [16]bool // From 4:30pm-12:00pm in half hour increments
+}
+
+type Availability struct {
+	Days [7]DailyAvailability // 0 == Sunday, 6 == Saturday
+}
 
 /*
 Defines a .survive file datatype.
@@ -24,7 +31,7 @@ Defines a .survive file datatype.
 type SurviveFile struct {
 	Week         int
 	Player       string
-	Availability string
+	Availability Availability
 	CreatedAt    time.Time
 }
 
@@ -45,7 +52,12 @@ func (ss *SurviveFile) save() error {
 	}
 
 	// Format data.
-	stringToWrite := fmt.Sprintf("%s: %s%s", ss.CreatedAt.Format(time.RFC3339), ss.Availability, "\n")
+	avail, err := ss.Availability.availabilityToString()
+	if err != nil {
+		return err
+	}
+
+	stringToWrite := fmt.Sprintf("%s%s", avail, "\n")
 
 	// Write string to open file.
 	_, err = f.WriteString(stringToWrite)
@@ -64,10 +76,90 @@ func (ss *SurviveFile) save() error {
 	return nil
 }
 
-func initFile(category int, week int, player string) (*SurviveFile, error) {
+func (aa Availability) availabilityToString() (string, error) {
+	var sb strings.Builder
+
+	for idx, day := range aa.Days {
+		// For each day
+		str, err := day.dailyAvailabilityToString()
+		if err != nil {
+			log.Print("Error converting day availability to string in availabilityToString.")
+			return "", err
+		}
+		// No error, write to master string.
+		sb.WriteString(str)
+		// Add a colon if not last day of week.
+		if idx != 6 {
+			sb.WriteString(":")
+		}
+	}
+
+	return sb.String(), nil
+}
+
+func (dd DailyAvailability) dailyAvailabilityToString() (string, error) {
+	// Input: a [16]bool
+	// Output: 4-character hex string. e.g: 4fcb
+
+	const BASE = 16
+	const DIFF = BASE - 1
+	var count int64 = 0
+	for idx, halfhour := range dd.Halfhours {
+		//0000 0000 0000 0000
+
+		if halfhour {
+			count += int64(math.Pow(float64(2), float64(DIFF-idx)))
+		}
+	}
+
+	// Convert the count (a base-10 number) into base-16
+	base16 := strconv.FormatInt(count, 16)
+	return base16, nil
+}
+
+// Convert the hex-encoded availability string into an Availability
+func stringToAvailability(availStr string) (*Availability, error) {
+
+	// Input: 0:c000:0:13:0888:4560:15a0
+	// 0000 <-> FFFF (hex-encoded 16-bit number)
+
+	// [1] Split into array with all 7 pieces
+	arr := strings.Split(availStr, ":")
+	if len(arr) != 7 {
+		log.Print("Expect 7 parts of an availability string, got ", len(arr))
+		return &Availability{}, errors.New("Expected 7 parts.")
+	}
+
+	AA := Availability{}
+
+	// [2] For each chunk (Sunday => Saturday)
+	for idx, hexNumStr := range arr {
+
+		day := &AA.Days[idx]
+
+		// [3] Parse hex number into integer
+		num, err := strconv.ParseInt(hexNumStr, 16, 32)
+		if err != nil {
+			log.Print("Unable to parse out the hexNumStr")
+			return &Availability{}, err
+		}
+
+		// [5] Iterate through string and flip bool of DailyAvail.
+		for i := 0; i < 16; i++ {
+			// ANDs the hex value and the bit in question.
+			if num&(1<<uint(16-i-1)) > 0 {
+				day.Halfhours[i] = true
+			}
+		}
+	}
+
+	return &AA, nil
+}
+
+func initFile(week int, player string) (*SurviveFile, error) {
 
 	// Init player with zero'd out (free) availability
-	tmp := &SurviveFile{Week: week, Player: player, Availability: "0000:0000:0000:0000:0000:0000:0000", CreatedAt: time.Now()}
+	tmp := &SurviveFile{Week: week, Player: player, Availability: Availability{}, CreatedAt: time.Now()}
 	err := tmp.save()
 	if err != nil {
 		log.Fatal("Error initializing file", err)
@@ -78,67 +170,90 @@ func initFile(category int, week int, player string) (*SurviveFile, error) {
 
 }
 
-func loadFile(week int, player string) (*SurviveFile, error) {
+//func loadFile(week int, player string) (*SurviveFile, error) {
+//
+//	// Compute file name based off convention
+//	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, week, player)
+//
+//	// Read file from file system.
+//	body, err := ioutil.ReadFile(filename)
+//
+//	// Catch error reading file.
+//	if err != nil {
+//		//log.Fatal("Error loading page!!")
+//		return nil, err
+//	}
+//
+//	// TODO: only return last line of file?
+//	return &SurviveFile{Week: week, Player: player, Availability: nil}, nil
+//}
 
-	// Compute file name based off convention
-	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, week, player)
+//func viewHandler(w http.ResponseWriter, r *http.Request) {
+//	path := r.URL.Path[len("/view/"):]
+//	weekAndName := strings.Split(path, "/")
+//	if len(weekAndName) != 2 {
+//		log.Print("Could not parse view input correctly.")
+//		http.NotFound(w, r)
+//		return
+//	}
+//
+//	num, _ := strconv.ParseInt(weekAndName[0], 10, 32)
+//	p, err := loadFile(int(num), weekAndName[1])
+//
+//	if err != nil {
+//		log.Print("Could not load page view handler")
+//		http.NotFound(w, r)
+//		return
+//	}
+//
+//	t, _ := template.ParseFiles("templates/view.html")
+//	err = t.Execute(w, p)
+//
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//}
 
-	// Read file from file system.
-	body, err := ioutil.ReadFile(filename)
-
-	// Catch error reading file.
-	if err != nil {
-		log.Fatal("Error loading page!")
-		return nil, err
-	}
-
-	// TODO: only return last line of file?
-	return &SurviveFile{Week: week, Player: player, Availability: string(body)}, nil
-}
-
-func viewHandler(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path[len("/view/"):]
-	weekAndName := strings.Split(path, "/")
-	if len(weekAndName) != 2 {
-		log.Fatal("Could not parse view input correctly.")
-		// TODO: redirect back home or to 404.
-	}
-	num, _ := strconv.ParseInt(weekAndName[0], 10, 32)
-	p, err := loadFile(int(num), weekAndName[1])
-
-	if err != nil {
-		log.Fatal("Could not load page view handler")
-		//TODO: redirect back home?
-	}
-	t, _ := template.ParseFiles("templates/home.html")
-	err = t.Execute(w, p)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
+//func editHandler(w http.ResponseWriter, r *http.Request) {
+//	path := r.URL.Path[len("/edit/"):]
+//	weekAndName := strings.Split(path, "/")
+//	if len(weekAndName) != 2 {
+//		log.Print("Could not parse edit input correctly.")
+//		http.NotFound(w, r)
+//		return
+//	}
+//
+//	num, _ := strconv.ParseInt(weekAndName[0], 10, 32)
+//	p, err := loadFile(int(num), weekAndName[1])
+//
+//	if err != nil {
+//		log.Print("Could not load page edit handler")
+//		http.NotFound(w, r)
+//		return
+//	}
+//
+//	t, _ := template.ParseFiles("templates/edit.html")
+//	err = t.Execute(w, p)
+//
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//}
 
 /*
 Main function. Entry point of program.
 */
 func main() {
 
-	//initFile(4, 1, "Joe")
-	//initFile(4, 2, "Mike")
-	//initFile(4, 1, "Tim")
+	//initFile(1, "Joe")
+	//initFile(2, "Mike")
+	//initFile( 1, "Tim")
 
-	http.HandleFunc("/view/", viewHandler) //  .../view/week/player_name
-	//http.HandleFunc("/edit/", editHandler)
-	//http.HandleFunc("/save/", saveHandler)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	//s, _ := loadFile(1,"Joe")
+
+	//http.HandleFunc("/view/", viewHandler) //  .../view/{week}/{player_name} || .../view/{week}
+	//http.HandleFunc("/edit/", editHandler) //  .../edit/{week{/{player_name}
+	////http.HandleFunc("/save/", saveHandler)
+	//log.Fatal(http.ListenAndServe(":8080", nil))
+
 }
-
-/**
-
-0000000000000000  Sunday 4:30pm-12pm Half hour increments (16 bits) === FFFF in hex for biggest
-
-ffff:ffff:ffff:ffff:ffff:ffff:ffff  (busy every time)
-0000:0000:0000:0000:0000:0000:0000  (free all the time)
-
-hex -> binary to determine availability every half hour
-
-**/
