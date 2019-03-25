@@ -6,7 +6,12 @@
 <div class="h-100 row align-items-center center text-center">
     <div class="col center text-center">
         VIEW {{.Player}}<br>
-        {{.Availability}}
+
         <br><br>
+        {{range .Availability.Days}}
+            {{.}}<br>
+        {{end}}
     </div>
 </div>
+
+

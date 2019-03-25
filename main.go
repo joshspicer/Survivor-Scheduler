@@ -9,9 +9,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"math"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -121,14 +123,14 @@ func (dd DailyAvailability) dailyAvailabilityToString() (string, error) {
 // Convert the hex-encoded availability string into an Availability
 func stringToAvailability(availStr string) (*Availability, error) {
 
-	// Input: 0:c000:0:13:0888:4560:15a0
-	// 0000 <-> FFFF (hex-encoded 16-bit number)
+	// Input eg: 0:c000:0:13:0888:4560:15a0
+	// where a segment: 0000 <-> FFFF (hex-encoded 16-bit number)
 
 	// [1] Split into array with all 7 pieces
 	arr := strings.Split(availStr, ":")
 	if len(arr) != 7 {
 		log.Print("Expect 7 parts of an availability string, got ", len(arr))
-		return &Availability{}, errors.New("Expected 7 parts.")
+		return &Availability{}, errors.New("expected 7 parts")
 	}
 
 	AA := Availability{}
@@ -187,6 +189,7 @@ func loadFile(week int, player string) (*SurviveFile, error) {
 
 	// Grab the latest file update
 	split := strings.Split(string(body), "\n")
+	// Per convention: every entry end in a newline, so go two lines up to get last entry.
 	avail := split[len(split)-2]
 
 	availability, err := stringToAvailability(avail)
@@ -197,57 +200,31 @@ func loadFile(week int, player string) (*SurviveFile, error) {
 	return &SurviveFile{Week: week, Player: player, Availability: *availability}, nil
 }
 
-//func viewHandler(w http.ResponseWriter, r *http.Request) {
-//	path := r.URL.Path[len("/view/"):]
-//	weekAndName := strings.Split(path, "/")
-//	if len(weekAndName) != 2 {
-//		log.Print("Could not parse view input correctly.")
-//		http.NotFound(w, r)
-//		return
-//	}
-//
-//	num, _ := strconv.ParseInt(weekAndName[0], 10, 32)
-//	p, err := loadFile(int(num), weekAndName[1])
-//
-//	if err != nil {
-//		log.Print("Could not load page view handler")
-//		http.NotFound(w, r)
-//		return
-//	}
-//
-//	t, _ := template.ParseFiles("templates/view.html")
-//	err = t.Execute(w, p)
-//
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//}
+func viewHandler(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path[len("/view/"):]
+	weekAndName := strings.Split(path, "/")
+	if len(weekAndName) != 2 {
+		log.Print("Could not parse view input correctly.")
+		http.NotFound(w, r)
+		return
+	}
 
-//func editHandler(w http.ResponseWriter, r *http.Request) {
-//	path := r.URL.Path[len("/edit/"):]
-//	weekAndName := strings.Split(path, "/")
-//	if len(weekAndName) != 2 {
-//		log.Print("Could not parse edit input correctly.")
-//		http.NotFound(w, r)
-//		return
-//	}
-//
-//	num, _ := strconv.ParseInt(weekAndName[0], 10, 32)
-//	p, err := loadFile(int(num), weekAndName[1])
-//
-//	if err != nil {
-//		log.Print("Could not load page edit handler")
-//		http.NotFound(w, r)
-//		return
-//	}
-//
-//	t, _ := template.ParseFiles("templates/edit.html")
-//	err = t.Execute(w, p)
-//
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//}
+	num, _ := strconv.ParseInt(weekAndName[0], 10, 32)
+	p, err := loadFile(int(num), weekAndName[1])
+
+	if err != nil {
+		log.Print("Could not load page view handler")
+		http.NotFound(w, r)
+		return
+	}
+
+	t, _ := template.ParseFiles("templates/view.html")
+	err = t.Execute(w, p)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 /*
 Main function. Entry point of program.
@@ -255,16 +232,15 @@ Main function. Entry point of program.
 func main() {
 
 	//initFile(1, "Joe")
-	initFile(2, "Mike")
-	initFile(1, "Tim")
+	//initFile(2, "Mike")
+	//initFile(1, "Tim")
 
 	s, _ := loadFile(1, "Joe")
 
 	fmt.Print(s)
 
-	//http.HandleFunc("/view/", viewHandler) //  .../view/{week}/{player_name} || .../view/{week}
-	//http.HandleFunc("/edit/", editHandler) //  .../edit/{week{/{player_name}
-	////http.HandleFunc("/save/", saveHandler)
-	//log.Fatal(http.ListenAndServe(":8080", nil))
+	http.HandleFunc("/view/", viewHandler) //  .../view/{week}/{player_name} || .../view/{week}
+	//http.HandleFunc("/save/", saveHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 
 }
