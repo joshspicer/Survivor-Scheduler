@@ -9,6 +9,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -170,23 +171,31 @@ func initFile(week int, player string) (*SurviveFile, error) {
 
 }
 
-//func loadFile(week int, player string) (*SurviveFile, error) {
-//
-//	// Compute file name based off convention
-//	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, week, player)
-//
-//	// Read file from file system.
-//	body, err := ioutil.ReadFile(filename)
-//
-//	// Catch error reading file.
-//	if err != nil {
-//		//log.Fatal("Error loading page!!")
-//		return nil, err
-//	}
-//
-//	// TODO: only return last line of file?
-//	return &SurviveFile{Week: week, Player: player, Availability: nil}, nil
-//}
+func loadFile(week int, player string) (*SurviveFile, error) {
+
+	// Compute file name based off convention
+	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, week, player)
+
+	// Read file from file system.
+	body, err := ioutil.ReadFile(filename)
+
+	// Catch error reading file.
+	if err != nil {
+		//log.Fatal("Error loading page!!")
+		return nil, err
+	}
+
+	// Grab the latest file update
+	split := strings.Split(string(body), "\n")
+	avail := split[len(split)-2]
+
+	availability, err := stringToAvailability(avail)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SurviveFile{Week: week, Player: player, Availability: *availability}, nil
+}
 
 //func viewHandler(w http.ResponseWriter, r *http.Request) {
 //	path := r.URL.Path[len("/view/"):]
@@ -246,10 +255,12 @@ Main function. Entry point of program.
 func main() {
 
 	//initFile(1, "Joe")
-	//initFile(2, "Mike")
-	//initFile( 1, "Tim")
+	initFile(2, "Mike")
+	initFile(1, "Tim")
 
-	//s, _ := loadFile(1,"Joe")
+	s, _ := loadFile(1, "Joe")
+
+	fmt.Print(s)
 
 	//http.HandleFunc("/view/", viewHandler) //  .../view/{week}/{player_name} || .../view/{week}
 	//http.HandleFunc("/edit/", editHandler) //  .../edit/{week{/{player_name}
