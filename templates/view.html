@@ -8,10 +8,17 @@
         VIEW {{.Player}}<br>
 
         <br><br>
-        {{range .Availability.Days}}
-            {{.}}<br>
+        {{range $i1, $e1 := .Availability.Days}}
+            <b>{{$i1}}</b>
+
+            {{range $i2, $e2 := .Halfhours}}
+                {{ if not $e2}}
+                    <button onclick="location.href=location.href+'/toggle/{{$i1}}/{{$i2}}'" class="btn btn-danger">BUSY</button>
+                    {{else}}
+                    <button class="btn btn-success">FREE</button>
+                {{ end }}
+            {{end}}
+            <br>
         {{end}}
     </div>
 </div>
-
-

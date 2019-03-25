@@ -41,6 +41,10 @@ type SurviveFile struct {
 // ========= ENVIRONMENT VARIABLES ==========
 const ENV_ROOT = "/Users/joshspicer/go/src/github.com/joshspicer/survivor-scheduler"
 
+//func echoTest() {
+//	fmt.Print("TEST")
+//}
+
 func (ss *SurviveFile) save() error {
 	// Define the filename with our filesystem naming convention based on struct fields.
 	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, ss.Week, ss.Player)
@@ -219,6 +223,13 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t, _ := template.ParseFiles("templates/view.html")
+
+	//funcMap := template.FuncMap {
+	//	"echoTest": echoTest,
+	//}
+	//
+	//t.Funcs(funcMap)
+
 	err = t.Execute(w, p)
 
 	if err != nil {
