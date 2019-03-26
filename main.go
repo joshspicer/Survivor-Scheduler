@@ -7,6 +7,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -36,6 +37,13 @@ type SurviveFile struct {
 	Player       string
 	Availability Availability
 	CreatedAt    time.Time
+}
+
+type JSONResponse struct {
+	Week   int
+	Player string
+	I1     int
+	I2     int
 }
 
 // ========= ENVIRONMENT VARIABLES ==========
@@ -81,6 +89,45 @@ func (ss *SurviveFile) save() error {
 	}
 
 	return nil
+}
+
+/**
+HELPER:
+Given an Availability and a "target" hour on a "target" day, flips the bit.
+Mutates the given Availability as it exists in memory
+*/
+func (aa *Availability) flipAvailabilityBit(dayIdx int, hourIdx int) {
+	currValue := aa.Days[dayIdx].Halfhours[hourIdx]
+	day := &aa.Days[dayIdx]
+	day.Halfhours[hourIdx] = !currValue
+
+}
+
+/**
+INTERFACE
+*/
+func updateActor(week int, player string, dayIdx int, hourIdx int) (*SurviveFile, error) {
+
+	// Load this player's file based on the information given.
+	sFile, err := loadFile(week, player)
+
+	if err != nil {
+		log.Print("Error loading file")
+		return nil, err
+	}
+
+	// Edit player's availability with the given instructions
+	sFile.Availability.flipAvailabilityBit(dayIdx, hourIdx)
+
+	// Save the edits
+	err = sFile.save()
+	if err != nil {
+		log.Print("Error saving file", err)
+		return nil, err
+	}
+
+	return sFile, nil
+
 }
 
 func (aa Availability) availabilityToString() (string, error) {
@@ -222,19 +269,38 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t, _ := template.ParseFiles("templates/view.html")
+	// Map functions from golang to be reflected in HTML
+	funcMap := template.FuncMap{
+		"tableflip":   func() string { return "(╯°□°）╯︵ ┻━┻" },
+		"updateActor": updateActor,
+	}
 
-	//funcMap := template.FuncMap {
-	//	"echoTest": echoTest,
-	//}
-	//
-	//t.Funcs(funcMap)
+	tpl := template.Must(template.New("main").Funcs(funcMap).ParseGlob("templates/*.html"))
 
-	err = t.Execute(w, p)
+	err = tpl.ExecuteTemplate(w, "view.html", p)
 
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func updateHandler(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	var t JSONResponse
+	err := decoder.Decode(&t)
+	if err != nil {
+		log.Print("Error parsing POST: ", err)
+		return
+	}
+
+	_, err = updateActor(t.Week, t.Player, t.I1, t.I2)
+	if err != nil {
+		log.Print("Error in the updateHandler, from updateActor: ", err)
+	}
+}
+
+func manageHandler(w http.ResponseWriter, r *http.Request) {
+
 }
 
 /*
@@ -248,9 +314,12 @@ func main() {
 
 	s, _ := loadFile(1, "Joe")
 
-	fmt.Print(s)
+	fmt.Println(s)
 
-	http.HandleFunc("/view/", viewHandler) //  .../view/{week}/{player_name} || .../view/{week}
+	http.HandleFunc("/view/", viewHandler)     //  .../view/{week}/{player_name}
+	http.HandleFunc("/manage/", manageHandler) //  .../manage/{week}/
+	http.HandleFunc("/update", updateHandler)  //  POST to /update with {week, player,i1,i2}
+
 	//http.HandleFunc("/save/", saveHandler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 

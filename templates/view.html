@@ -1,24 +1,45 @@
 <head>
 
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
 </head>
 <div class="h-100 row align-items-center center text-center">
     <div class="col center text-center">
-        VIEW {{.Player}}<br>
+        <h1>{{.Player}}</h1><br>
 
         <br><br>
         {{range $i1, $e1 := .Availability.Days}}
             <b>{{$i1}}</b>
-
             {{range $i2, $e2 := .Halfhours}}
                 {{ if not $e2}}
-                    <button onclick="location.href=location.href+'/toggle/{{$i1}}/{{$i2}}'" class="btn btn-danger">BUSY</button>
+                    <button onclick="updateActor({{$i1}},{{$i2}})" class="btn btn-danger">BUSY</button>
                     {{else}}
-                    <button class="btn btn-success">FREE</button>
+                    <button onclick="updateActor({{$i1}},{{$i2}})" class="btn btn-success">FREE</button>
                 {{ end }}
             {{end}}
             <br>
         {{end}}
     </div>
+
+    <script>
+        // An alternative to: updateActor $ $i1 $i2
+        // Send a POST to server
+        // Input:
+        //        - Day of Week from $i1
+        //        - Hour from $i2
+        function updateActor(i1, i2) {
+            axios.post("/update", {
+                week: {{.Week}},
+                player: {{.Player}},
+                i1: i1,
+                i2: i2
+            }).then(function (response) {
+                //console.log(response);
+            }).catch(function (error) {
+                //console.log(error);
+            });
+        }
+
+    </script>
 </div>
