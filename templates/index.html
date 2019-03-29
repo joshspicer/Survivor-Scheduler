@@ -1,0 +1,38 @@
+<head>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Survivor: Northeastern Scheduler</title>
+
+
+</head>
+<div class="h-20 row align-items-center center text-center">
+    <div class="col center text-center">
+        <img src="https://parade.events//blog/assets/resources-survivor/logo.png" />
+        <h3>Status: <span style="color: green;">Running</span></h3>
+        <br>
+        <h4>Manage a Player</h4>
+        <p>
+           <code>/edit/{playername}</code><br>
+            <br>
+            {{range $i1, $e1 := .}}
+                        <button onclick="window.location.href='/edit/{{$e1}}'" class="btn btn-primary">{{$e1}}</button>
+            {{end}}
+        </p>
+        <br><br>
+        <h4>Manage a Game</h4>
+        <p>
+             <code>/manage</code><br><br>
+            <button onclick="window.location.href='/manage'" class="btn btn-dark">manage</button>
+
+        </p>
+
+
+
+    </div>
+
+    <script>
+        // No scripts
+    </script>
+</div>

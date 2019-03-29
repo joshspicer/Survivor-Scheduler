@@ -2,11 +2,15 @@
 
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Survivor: Northeastern Scheduler</title>
+
 
 </head>
-<div class="h-100 row align-items-center center text-center">
+<div class="h-20 row align-items-center center text-center">
     <div class="col center text-center">
-        <h1>{{.Player}}</h1><br>
+        <img src="https://parade.events//blog/assets/resources-survivor/logo.png" />
+        <h1>Edit  <span style="color: black;">{{.Player}}</span></h1><br>
 
         <br><br>
         {{range $i1, $e1 := .Availability.Days}}
@@ -30,7 +34,6 @@
         //        - Hour from $i2
         function updateActor(i1, i2) {
             axios.post("/update", {
-                week: {{.Week}},
                 player: {{.Player}},
                 i1: i1,
                 i2: i2

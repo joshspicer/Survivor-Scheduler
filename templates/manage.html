@@ -1,0 +1,34 @@
+<head>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Survivor: Northeastern Scheduler</title>
+
+
+</head>
+<div class="h-20 row align-items-center center text-center">
+    <div class="col center text-center">
+        <img src="https://parade.events//blog/assets/resources-survivor/logo.png" />
+        <h1>Game Manager</h1><br><br>
+
+        The best time to host the event is: ___________
+
+        <br><br>
+        {{range $i1, $e1 := .Days}}
+            <b>{{$i1}}</b>
+            {{range $i2, $e2 := .Halfhours}}
+                {{ if not $e2}}
+                    ⚠️
+                {{else}}
+                    ✅
+                {{ end }}
+            {{end}}
+            <br>
+        {{end}}
+    </div>
+
+    <script>
+        // No scripts
+    </script>
+</div>

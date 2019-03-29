@@ -7,6 +7,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,29 +34,27 @@ type Availability struct {
 Defines a .survive file datatype.
 */
 type SurviveFile struct {
-	Week         int
 	Player       string
 	Availability Availability
 	CreatedAt    time.Time
 }
 
 type JSONResponse struct {
-	Week   int
 	Player string
 	I1     int
 	I2     int
 }
 
 // ========= ENVIRONMENT VARIABLES ==========
-const ENV_ROOT = "/Users/joshspicer/go/src/github.com/joshspicer/survivor-scheduler"
+//const ENV_ROOT = "/Users/joshspicer/go/src/github.com/joshspicer/survivor-scheduler"
+const ENV_ROOT = "/Users/jspicer/go/src/survivor-scheduler-golang"
 
-//func echoTest() {
-//	fmt.Print("TEST")
-//}
+// ==== STATE ====
+var PLAYERS []string
 
 func (ss *SurviveFile) save() error {
 	// Define the filename with our filesystem naming convention based on struct fields.
-	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, ss.Week, ss.Player)
+	filename := fmt.Sprintf("%s/%s.survive", ENV_ROOT, ss.Player)
 
 	// Open the file it is exists, or make a new one.
 	// Either way, mark file as APPENDABLE
@@ -104,12 +103,13 @@ func (aa *Availability) flipAvailabilityBit(dayIdx int, hourIdx int) {
 }
 
 /**
-INTERFACE
+Appends to (or creates new) .survive file based on given parameters.
+Used to update data file on disk with availability changes.
 */
-func updateActor(week int, player string, dayIdx int, hourIdx int) (*SurviveFile, error) {
+func updateActor(player string, dayIdx int, hourIdx int) (*SurviveFile, error) {
 
 	// Load this player's file based on the information given.
-	sFile, err := loadFile(week, player)
+	sFile, err := loadFile(player)
 
 	if err != nil {
 		log.Print("Error loading file")
@@ -130,6 +130,9 @@ func updateActor(week int, player string, dayIdx int, hourIdx int) (*SurviveFile
 
 }
 
+// Outputs a given Availability as a string.
+// Of form:
+// 			0000:0000:<...7 hex groups...>:0000
 func (aa Availability) availabilityToString() (string, error) {
 	var sb strings.Builder
 
@@ -160,7 +163,6 @@ func (dd DailyAvailability) dailyAvailabilityToString() (string, error) {
 	var count int64 = 0
 	for idx, halfhour := range dd.Halfhours {
 		//0000 0000 0000 0000
-
 		if halfhour {
 			count += int64(math.Pow(float64(2), float64(DIFF-idx)))
 		}
@@ -210,10 +212,10 @@ func stringToAvailability(availStr string) (*Availability, error) {
 	return &AA, nil
 }
 
-func initFile(week int, player string) (*SurviveFile, error) {
+func initFile(player string) (*SurviveFile, error) {
 
 	// Init player with zero'd out (free) availability
-	tmp := &SurviveFile{Week: week, Player: player, Availability: Availability{}, CreatedAt: time.Now()}
+	tmp := &SurviveFile{Player: player, Availability: Availability{}, CreatedAt: time.Now()}
 	err := tmp.save()
 	if err != nil {
 		log.Fatal("Error initializing file", err)
@@ -224,10 +226,10 @@ func initFile(week int, player string) (*SurviveFile, error) {
 
 }
 
-func loadFile(week int, player string) (*SurviveFile, error) {
+func loadFile(player string) (*SurviveFile, error) {
 
 	// Compute file name based off convention
-	filename := fmt.Sprintf("%s/%d-%s.survive", ENV_ROOT, week, player)
+	filename := fmt.Sprintf("%s/%s.survive", ENV_ROOT, player)
 
 	// Read file from file system.
 	body, err := ioutil.ReadFile(filename)
@@ -248,23 +250,22 @@ func loadFile(week int, player string) (*SurviveFile, error) {
 		return nil, err
 	}
 
-	return &SurviveFile{Week: week, Player: player, Availability: *availability}, nil
+	return &SurviveFile{Player: player, Availability: *availability}, nil
 }
 
-func viewHandler(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path[len("/view/"):]
-	weekAndName := strings.Split(path, "/")
-	if len(weekAndName) != 2 {
+func playerEditHandler(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path[len("/edit/"):]
+	player := strings.Split(path, "/")
+	if len(player) != 1 {
 		log.Print("Could not parse view input correctly.")
 		http.NotFound(w, r)
 		return
 	}
 
-	num, _ := strconv.ParseInt(weekAndName[0], 10, 32)
-	p, err := loadFile(int(num), weekAndName[1])
+	p, err := loadFile(player[0])
 
 	if err != nil {
-		log.Print("Could not load page view handler")
+		log.Print("Could not load page player edit handler")
 		http.NotFound(w, r)
 		return
 	}
@@ -277,7 +278,7 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 
 	tpl := template.Must(template.New("main").Funcs(funcMap).ParseGlob("templates/*.html"))
 
-	err = tpl.ExecuteTemplate(w, "view.html", p)
+	err = tpl.ExecuteTemplate(w, "playerEdit.html", p)
 
 	if err != nil {
 		log.Fatal(err)
@@ -293,13 +294,130 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = updateActor(t.Week, t.Player, t.I1, t.I2)
+	_, err = updateActor(t.Player, t.I1, t.I2)
 	if err != nil {
 		log.Print("Error in the updateHandler, from updateActor: ", err)
 	}
 }
 
 func manageHandler(w http.ResponseWriter, r *http.Request) {
+
+	aggregatedWeeklyAvails, err := aggregatedWeeklyAvails(); if err != nil {
+		log.Print(err)
+	}
+
+	// Map functions from golang to be reflected in HTML
+	funcMap := template.FuncMap{
+		"tableflip": func() string { return "(╯°□°）╯︵ ┻━┻" },
+	}
+
+	tpl := template.Must(template.New("main").Funcs(funcMap).ParseGlob("templates/*.html"))
+
+	err = tpl.ExecuteTemplate(w, "manage.html", aggregatedWeeklyAvails)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+func indexHandler(w http.ResponseWriter, r *http.Request) {
+
+	// Map functions from golang to be reflected in HTML
+	funcMap := template.FuncMap{
+		"tableflip": func() string { return "(╯°□°）╯︵ ┻━┻" },
+	}
+
+	tpl := template.Must(template.New("main").Funcs(funcMap).ParseGlob("templates/*.html"))
+
+	err := tpl.ExecuteTemplate(w, "index.html", PLAYERS)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+func errorHandler(w http.ResponseWriter, r *http.Request) {
+
+	tpl := template.Must(template.New("main").ParseGlob("templates/*.html"))
+
+	err := tpl.ExecuteTemplate(w, "error.html", nil)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+
+
+// Utilizes conf.survive to flatten all player's availabilities
+// into one "master availablity".
+// If any one person is unavailable, time slot is marked as "busy", else kept "free"
+
+func aggregatedWeeklyAvails() (Availability, error) {
+
+	// "Master" availability
+	var master Availability
+
+	// For each Player, get their availability. Flip master if conflict
+	for _, player := range PLAYERS {
+		file, err := loadFile(player); if err != nil {
+			return Availability{}, err
+		}
+
+		for dayIdx, day := range file.Availability.Days {
+			for hrIdx := 0; hrIdx < 16; hrIdx++ {
+				if day.Halfhours[hrIdx] {
+					master.Days[dayIdx].Halfhours[hrIdx] = true
+				}
+			}
+		}
+	}
+
+	return master, nil
+}
+
+/**
+*/
+func bigBang() error {
+
+	newGame, err := os.OpenFile("conf", os.O_RDONLY, 0600)
+
+	// If there is no new init file, lets see if we have an existing game to restore from!!
+	if err != nil {
+		existingGame, err := os.OpenFile("conf.processed", os.O_RDONLY, 0600); if err != nil {
+			log.Print("Lack of either new OR existing conf file...")
+			return err
+		}
+		scanner := bufio.NewScanner(existingGame)
+		for scanner.Scan() {
+			PLAYERS = append(PLAYERS, scanner.Text())
+		}
+
+		// Existing game restored. Now Return from function with no error.
+		return nil
+	}
+
+
+	// === If game has NEVER been initialized we continue down here. ====
+
+	scanner := bufio.NewScanner(newGame)
+	for scanner.Scan() {
+
+		PLAYERS = append(PLAYERS, scanner.Text())
+		_, err := initFile(scanner.Text())
+
+		if err != nil {
+			log.Print("Error init of player. Check config format.")
+			return err
+		}
+	}
+
+	err = os.Rename("conf", "conf.processed")
+
+	return err
 
 }
 
@@ -308,17 +426,21 @@ Main function. Entry point of program.
 */
 func main() {
 
-	//initFile(1, "Joe")
-	//initFile(2, "Mike")
-	//initFile(1, "Tim")
+	// If conf.survive exists, initialize game.
+	err := bigBang()
+	if err != nil {
+		log.Print("Error in bigbang", err)
+		http.HandleFunc("/", errorHandler)
 
-	s, _ := loadFile(1, "Joe")
+	} else {
+		http.HandleFunc("/", indexHandler)
+		http.HandleFunc("/edit/", playerEditHandler) //  .../view/{week}/{player_name}
+		http.HandleFunc("/manage/", manageHandler)   //  .../manage/{week}/
+		http.HandleFunc("/update", updateHandler)    //  POST to /update with {week, player,i1,i2}
+	}
 
-	fmt.Println(s)
+	fmt.Print(PLAYERS)
 
-	http.HandleFunc("/view/", viewHandler)     //  .../view/{week}/{player_name}
-	http.HandleFunc("/manage/", manageHandler) //  .../manage/{week}/
-	http.HandleFunc("/update", updateHandler)  //  POST to /update with {week, player,i1,i2}
 
 	//http.HandleFunc("/save/", saveHandler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
