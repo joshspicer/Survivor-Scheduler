@@ -17,9 +17,9 @@
             <b>{{$i1}}</b>
             {{range $i2, $e2 := .Halfhours}}
                 {{ if not $e2}}
-                    <button onclick="updateActor({{$i1}},{{$i2}})" class="btn btn-danger">BUSY</button>
+                    <button id="{{$i1}}-{{$i2}}" onclick="updateActor({{$i1}},{{$i2}}, 'B')" class="btn btn-danger">BUSY</button>
                     {{else}}
-                    <button onclick="updateActor({{$i1}},{{$i2}})" class="btn btn-success">FREE</button>
+                    <button id="{{$i1}}-{{$i2}}" onclick="updateActor({{$i1}},{{$i2}}, 'F')" class="btn btn-success">FREE</button>
                 {{ end }}
             {{end}}
             <br>
@@ -32,13 +32,24 @@
         // Input:
         //        - Day of Week from $i1
         //        - Hour from $i2
-        function updateActor(i1, i2) {
+        function updateActor(i1, i2, mode) {
             axios.post("/update", {
                 player: {{.Player}},
                 i1: i1,
                 i2: i2
             }).then(function (response) {
-                //console.log(response);
+                // Responsive UI
+                if (mode === 'B') {
+                    document.getElementById(i1 + "-" + i2).className = "btn btn-success";
+                    document.getElementById(i1 + "-" + i2).innerText = "FREE";
+                }
+
+                if (mode === 'F') {
+                    document.getElementById(i1 + "-" + i2).className = "btn btn-danger";
+                    document.getElementById(i1 + "-" + i2).innerText = "BUSY";
+                }
+
+
             }).catch(function (error) {
                 //console.log(error);
             });
