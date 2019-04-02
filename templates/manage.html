@@ -12,9 +12,26 @@
         <img src="https://parade.events//blog/assets/resources-survivor/logo.png" />
         <h1>Game Manager</h1><br><br>
 
-        The best time to host the event is: ___________
+        <h4>How long is the next event?</h4>
+        <div>
+        <button onclick="duration(30)" class="btn btn-primary">30 minutes</button>
+        <button onclick="duration(60)" class="btn btn-primary">1 hour</button>
+        <button onclick="duration(120)" class="btn btn-primary">2 hours</button>
+        </div>
 
         <br><br>
+        <div id="best-time" style="display: none;">
+        <h4>The best times to host an event <strong><span id="duration"></span></strong> in length are:</h4>
+        <p>...</p>
+        <p>...</p>
+        <p>...</p>
+        <p>...</p>
+        </div>
+
+        <br><br><br>
+
+
+        <h3>Availabilities</h3>
         {{range $i1, $e1 := .Days}}
             <b>{{$i1}}</b>
             {{range $i2, $e2 := .Halfhours}}
@@ -29,6 +46,21 @@
     </div>
 
     <script>
-        // No scripts
+        function duration(minutes) {
+            document.getElementById('best-time').style.display = "block";
+
+            switch (minutes) {
+                case 30:
+                    document.getElementById('duration').innerHTML = '30 minutes';
+                    break;
+                case 60:
+                    document.getElementById('duration').innerHTML = 'an hour';
+                    break;
+                case 120:
+                default:
+                    document.getElementById('duration').innerHTML = 'two hours';
+            }
+
+        }
     </script>
 </div>
