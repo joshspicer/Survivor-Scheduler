@@ -1,8 +1,8 @@
 ## Things to do
 
-1. More responsive UI throughout
+1. ~~More responsive UI throughout~~
 2. Improved calculations on ideal meetup times.
-3. Improved design/UI
+3. ~~Improved design/UI~~
 4. "Vote out" mechanism
 5. Player Access Control
 
